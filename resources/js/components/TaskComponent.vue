@@ -10,6 +10,11 @@
                         </button>
                     </div>
                     <div class="modal-body">
+                        <div v-if="errors.length > 0" class="alert alert-danger" role="alert">
+                            <ul>
+                                <li v-for="(error, index) in errors" :key="index">{{ error }}</li>
+                            </ul>
+                        </div>
                         <div class="form-group">
                             <label for="">Task Title</label>
                             <input v-model="task.title" type="text" name="title" id="" class="form-control">
@@ -24,8 +29,8 @@
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                        <button type="button" class="btn btn-primary">Save changes</button>
+                        <button @click="resetModal()" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                        <button @click="saveTask()" class="btn btn-primary">Submit</button>
                     </div>
                 </div>
             </div>
@@ -61,12 +66,20 @@
                                     <td>{{ task.title }}</td>
                                     <td>{{ task.prior }}</td>
                                     <td>
-                                        <button class="btn btn-default btn-sm">Edit</button>
-                                        <button class="btn btn-danger btn-sm">Delete</button>
+                                        <button @click="updateTask(task)" class="btn btn-default btn-sm">Edit</button>
+                                        <button @click="deleteTask(task)" class="btn btn-danger btn-sm">Delete</button>
                                     </td>
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+
+                    <div class="card-footer text-muted">
+                        <ul class="pagination">
+                            <li :class="[{disabled: !this.pagination.prev_page_url}]" class="page-item"><a @click="getTasks(pagination.prev_page_url)" href="#" class="page-link">Previous</a></li>
+                            <li class="page-item disabled"><a href="#" class="page-link">Page {{ pagination.current_page }} of {{ pagination.last_page }}</a></li>
+                            <li :class="[{disabled: !this.pagination.next_page_url}]" class="page-item"><a @click="getTasks(pagination.next_page_url)" href="#" class="page-link">Next</a></li>
+                        </ul>
                     </div>
                 </div>
             </div>
@@ -83,20 +96,95 @@
             return {
                 tasks: [],
                 task: {
+                    id: '',
                     title: '',
                     prior: ''
-                }
+                },
+                errors: [],
+                edit: false,
+                pagination: {},
             };
         },
         methods: {
             showModal() {
+                this.errors = [];
                 $('#modal-form').modal('show');
             },
-            getTasks() {
-                axios.get('task').then(response => {
+            getTasks(page_url) {
+                let url = page_url || 'task';
+                axios.get(url).then(response => {
                     this.tasks = response.data.data;
-                    console.log(this.tasks);
+                    this.createPagination(response.data.meta, response.data.links);
                 });
+            },
+            saveTask() {
+                if (!this.edit) {
+                    axios.post('task', {
+                        title: this.task.title,
+                        prior: this.task.prior,
+                    }).then(response => {
+                        this.getTasks();
+                        this.resetModal();
+                        $('#modal-form').modal('hide');
+                    }).catch(error => {
+                        this.errors = [];
+                        if (error.response.data.errors.title) {
+                            this.errors.push(error.response.data.errors.title[0]);
+                        }
+                        if (error.response.data.errors.prior) {
+                            this.errors.push(error.response.data.errors.prior[0]);
+                        }
+                    });
+                } else {
+                    axios.patch('task/' + this.task.id, {
+                        title: this.task.title,
+                        prior: this.task.prior
+                    }).then(response => {
+                        this.getTasks();
+                        this.resetModal();
+                        $('#modal-form').modal('hide');
+                    }).catch(error => {
+                        this.errors = [];
+                        if (error.response.data.errors.title) {
+                            this.errors.push(error.response.data.errors.title[0]);
+                        }
+                        if (error.response.data.errors.prior) {
+                            this.errors.push(error.response.data.errors.prior[0]);
+                        }
+                    });
+                }
+            },
+            updateTask(task) {
+                this.task.id = task.id;
+                this.task.title = task.title;
+                this.task.prior = task.prior;
+
+                this.edit = true;
+
+                this.showModal();
+            },
+            deleteTask(task) {
+                if (confirm('Are you sure?')) {
+                    axios.delete('task/' + task.id).then(response => {
+                        this.getTasks();
+                    }).catch(error => {
+                        console.log(error);
+                    });
+                }
+            },
+            resetModal() {
+                this.task.title = '';
+                this.task.prior = '';
+                this.edit = false;
+            },
+            createPagination(meta, links) {
+                let pagination = {
+                    current_page: meta.current_page,
+                    last_page: meta.last_page,
+                    next_page_url: links.next,
+                    prev_page_url: links.prev
+                }
+                this.pagination = pagination;
             }
         },
         mounted() {

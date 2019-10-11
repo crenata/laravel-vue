@@ -6,6 +6,9 @@
  */
 
 require('./bootstrap');
+require('../../public/js/jquery-3.4.0.min.js');
+require('../../public/js/jquery.dataTables.min.js');
+require('../../public/js/popper.min.js');
 
 window.Vue = require('vue');
 
